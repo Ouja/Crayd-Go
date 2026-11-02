@@ -40,10 +40,10 @@ func normalizeMySQLDSN(dsn string) (string, error) {
 	return cfg.FormatDSN(), nil
 }
 
-// isDuplicateKey reports MySQL error 1062 (a UNIQUE index was violated).
+// isDuplicateKey reports a violated UNIQUE index: MySQL error 1062 or PostgreSQL 23505.
 func isDuplicateKey(err error) bool {
 	var me *mysql.MySQLError
-	return errors.As(err, &me) && me.Number == 1062
+	return (errors.As(err, &me) && me.Number == 1062) || isPostgresDuplicate(err)
 }
 
 // notFound turns the db package's "no row" into the models package's.

@@ -89,7 +89,7 @@ func run() error {
 	if cfg.DBDSN != "" {
 		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 		defer cancel()
-		conn, err := store.OpenMySQL(ctx, cfg.DBDSN)
+		conn, err := store.Open(ctx, cfg.DBDSN)
 		if err != nil {
 			return err
 		}
@@ -101,7 +101,7 @@ func run() error {
 			}
 		}
 		d.Users, d.Orders = store.NewUserSQL(conn), store.NewOrderSQL(conn)
-		log.Println("data: MySQL/MariaDB")
+		log.Println("data:", dbName(conn))
 	} else {
 		log.Println("data: in-memory (set DB_DSN to keep users and orders)")
 	}
@@ -141,7 +141,7 @@ func runMigrate(cfg Config) error {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
-	conn, err := store.OpenMySQL(ctx, cfg.DBDSN)
+	conn, err := store.Open(ctx, cfg.DBDSN)
 	if err != nil {
 		return err
 	}
@@ -150,7 +150,7 @@ func runMigrate(cfg Config) error {
 }
 
 func migrateAndLog(ctx context.Context, conn *db.DB) error {
-	applied, err := db.Migrate(ctx, conn, migrations.FS, ".")
+	applied, err := db.Migrate(ctx, conn, migrations.FS, migrations.Dir(conn.Dialect()))
 	if len(applied) > 0 {
 		log.Println("migrations applied:", strings.Join(applied, ", "))
 	}
@@ -161,4 +161,11 @@ func migrateAndLog(ctx context.Context, conn *db.DB) error {
 		log.Println("migrations: database is up to date")
 	}
 	return nil
+}
+
+func dbName(conn *db.DB) string {
+	if conn.Dialect() == db.Postgres {
+		return "PostgreSQL"
+	}
+	return "MySQL/MariaDB"
 }

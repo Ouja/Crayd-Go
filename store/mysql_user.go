@@ -7,7 +7,8 @@ import (
 	"crayd-go/models"
 )
 
-// UserSQL is the MySQL/MariaDB models.UserStore. Table: migrations/001_create_users.sql.
+// UserSQL is the models.UserStore for MySQL/MariaDB and PostgreSQL.
+// Table: migrations/001_create_users.sql (postgres/001_create_users.sql).
 type UserSQL struct{ DB *db.DB }
 
 func NewUserSQL(conn *db.DB) *UserSQL { return &UserSQL{DB: conn} }

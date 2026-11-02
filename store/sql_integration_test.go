@@ -52,6 +52,48 @@ func TestMySQLStores(t *testing.T) {
 	exerciseStores(t, conn)
 }
 
+// Runs only when POSTGRES_TEST_DSN points at a scratch database whose name ends in _test.
+// It DROPS the app's tables first, so it refuses any other database.
+//
+//	createdb crayd_test
+//	POSTGRES_TEST_DSN="postgres://postgres:secret@localhost:5432/crayd_test?sslmode=disable" go test ./store -run Postgres -v
+func TestPostgresStores(t *testing.T) {
+	dsn := os.Getenv("POSTGRES_TEST_DSN")
+	if dsn == "" {
+		t.Skip("set POSTGRES_TEST_DSN (database name must end in _test) to run against a real PostgreSQL")
+	}
+	ctx := context.Background()
+	conn, err := Open(ctx, dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	if conn.Dialect() != db.Postgres {
+		t.Fatal("Open did not pick PostgreSQL")
+	}
+
+	var name string
+	if err := conn.Get(ctx, &name, "SELECT current_database()"); err != nil || !strings.HasSuffix(name, "_test") {
+		t.Fatalf("refusing to run: database %q (%v) does not end in _test", name, err)
+	}
+	for _, tbl := range []string{"order_items", "orders", "users", "schema_migrations"} {
+		if _, err := conn.Exec(ctx, db.Dynamic("DROP TABLE IF EXISTS "+tbl+" CASCADE")); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	dir := migrations.Dir(conn.Dialect())
+	applied, err := db.Migrate(ctx, conn, migrations.FS, dir)
+	if err != nil || len(applied) != 2 {
+		t.Fatalf("first migrate: %v %v", applied, err)
+	}
+	if again, err := db.Migrate(ctx, conn, migrations.FS, dir); err != nil || len(again) != 0 {
+		t.Fatalf("second migrate must do nothing: %v %v", again, err)
+	}
+
+	exerciseStores(t, conn)
+}
+
 // exerciseStores runs the same checks on any database the stores' SQL works on.
 func exerciseStores(t *testing.T, conn *db.DB) {
 	ctx := context.Background()

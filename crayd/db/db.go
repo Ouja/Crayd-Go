@@ -188,10 +188,14 @@ func (r runner) Exec(ctx context.Context, q Query, args ...any) (int64, error) {
 	return res.RowsAffected()
 }
 
-// Insert runs an INSERT and returns the new row's ID. On PostgreSQL the query
-// must end with "RETURNING id"; on MySQL and SQLite the driver's LastInsertId is used.
+// Insert runs an INSERT and returns the new row's ID, read from a column named id.
+// On PostgreSQL "RETURNING id" is added when the query has no RETURNING clause;
+// on MySQL and SQLite the driver's LastInsertId is used.
 func (r runner) Insert(ctx context.Context, q Query, args ...any) (int64, error) {
 	if r.dialect == Postgres {
+		if !strings.Contains(strings.ToUpper(string(q)), "RETURNING") {
+			q = Query(strings.TrimRight(strings.TrimSpace(string(q)), ";")) + " RETURNING id"
+		}
 		var id int64
 		err := r.Get(ctx, &id, q, args...)
 		if errors.Is(err, ErrNotFound) {

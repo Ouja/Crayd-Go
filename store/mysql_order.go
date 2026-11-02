@@ -7,7 +7,8 @@ import (
 	"crayd-go/models"
 )
 
-// OrderSQL is the MySQL/MariaDB models.OrderStore. Tables: migrations/002_create_orders.sql.
+// OrderSQL is the models.OrderStore for MySQL/MariaDB and PostgreSQL.
+// Tables: migrations/002_create_orders.sql (postgres/002_create_orders.sql).
 // Items live in order_items and are deleted with their order (ON DELETE CASCADE).
 type OrderSQL struct{ DB *db.DB }
 
@@ -19,7 +20,7 @@ const (
 )
 
 // itemsPerQuery caps how many order IDs go into one IN (...) list, to stay far below
-// the 65,535 placeholder limit of MySQL. A variable so tests can make it tiny.
+// the 65,535 placeholder limit of MySQL and PostgreSQL. A variable so tests can make it tiny.
 var itemsPerQuery = 500
 
 // Create stores the order and its items in one transaction, then sets o.ID.

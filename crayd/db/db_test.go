@@ -265,8 +265,14 @@ func TestExecAndInsert(t *testing.T) {
 	if pf.last().query != "INSERT INTO orders (customer) VALUES ($1) RETURNING id" {
 		t.Fatalf("query %q", pf.last().query)
 	}
-	pgNoReturning, _ := newFake(t, Postgres, rowsReply([]string{"id"}))
-	if _, err := pgNoReturning.Insert(ctx, "INSERT INTO orders (customer) VALUES (?)", "Ada"); err == nil || !strings.Contains(err.Error(), "RETURNING id") {
+	if id, err := pg.Insert(ctx, "INSERT INTO orders (customer) VALUES (?);\n", "Ada"); err != nil || id != 9 {
+		t.Fatalf("pg Insert without RETURNING: id=%d err=%v", id, err)
+	}
+	if pf.last().query != "INSERT INTO orders (customer) VALUES ($1) RETURNING id" {
+		t.Fatalf("RETURNING id not added: %q", pf.last().query)
+	}
+	pgNoRow, _ := newFake(t, Postgres, rowsReply([]string{"id"}))
+	if _, err := pgNoRow.Insert(ctx, "INSERT INTO orders (customer) VALUES (?) RETURNING id", "Ada"); err == nil || !strings.Contains(err.Error(), "RETURNING id") {
 		t.Fatalf("err = %v", err)
 	}
 }

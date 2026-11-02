@@ -212,9 +212,9 @@ Then wire it in `buildApp`. Services are created once here and handed to the con
 
 Run it, open `/note`, add a note. Restarting loses the notes, which is what the next step fixes.
 
-### 7. A real database (MySQL / MariaDB)
+### 7. A real database (MySQL / MariaDB or PostgreSQL)
 
-Add a migration, `migrations/003_create_notes.sql`:
+Add a migration, `migrations/003_create_notes.sql` for MySQL/MariaDB:
 
     CREATE TABLE notes (
       id         BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -222,7 +222,15 @@ Add a migration, `migrations/003_create_notes.sql`:
       created_at DATETIME(6)   NOT NULL
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-and a store, `store/mysql_note.go`:
+and/or `migrations/postgres/003_create_notes.sql` for PostgreSQL:
+
+    CREATE TABLE notes (
+      id         BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+      body       VARCHAR(2000) NOT NULL,
+      created_at TIMESTAMP(6)  NOT NULL
+    );
+
+Then one store, `store/sql_note.go`, that works on both:
 
     type NoteSQL struct{ DB *db.DB }
 
@@ -247,7 +255,10 @@ In `run()` in `main.go`, next to where `NewUserSQL` and `NewOrderSQL` are chosen
 instead of `store.NewMemoryNotes()` when `DB_DSN` is set (add a `Notes models.NoteStore` field to `Deps`, like `Users`).
 Then:
 
-    DB_DSN=user:pass@tcp(localhost:3306)/crayd go run .     # applies migration 003 on start (development)
+    DB_DSN=user:pass@tcp(localhost:3306)/crayd go run .                        # MySQL/MariaDB
+    DB_DSN=postgres://user:pass@localhost:5432/crayd?sslmode=disable go run .   # PostgreSQL
+
+Either way migration 003 is applied on start (in development).
 
 Rules of the database helper, in short:
 - Write `?` for every value. SQL that is built by gluing strings (`"... WHERE x = '" + x + "'"`) does not compile.
@@ -255,7 +266,7 @@ Rules of the database helper, in short:
 - Several steps that must succeed together go in `DB.Tx(ctx, func(tx *db.Tx) error { ... })`. Return an error to roll back.
   `OrderSQL.Create` in `store/mysql_order.go` is the example.
 - Migrations only go forward. To change a table, add `004_...sql`. Never edit one that has been applied.
-- On PostgreSQL, `INSERT` needs `... RETURNING id` and the DDL differs (`BIGSERIAL`, `TIMESTAMP`).
+- `Insert` returns the new ID on both databases (on PostgreSQL it adds `RETURNING id` for you).
 
 ### 8. Protect pages with a login
 
@@ -293,7 +304,7 @@ and `expect(t, resp, 303)` are all you need. Run everything with the race detect
 
        APP_ENV=production
        ADDR=:8080
-       DB_DSN=user:pass@tcp(db:3306)/crayd
+       DB_DSN=user:pass@tcp(db:3306)/crayd   # or postgres://user:pass@db:5432/crayd
        REDIS_ADDR=redis:6379          # or SESSION_SECRET=<32+ random characters>
 
    Production refuses to start when `DB_DSN`, or a session store (`REDIS_ADDR` or `SESSION_SECRET`), is missing.
@@ -310,8 +321,8 @@ Not included: login rate limiting, email sending, password reset, user roles.
     crayd/         the framework (standard library only)
     controllers/   thin: read params, call a model, pick a view
     models/        business rules, plain Go (no HTTP, SQL or Redis); defines the Cache and store interfaces
-    store/         implementations: in-memory, Redis (cache, sessions), MySQL/MariaDB (users, orders)
-    migrations/    numbered .sql files, embedded in the binary
+    store/         implementations: in-memory, Redis (cache, sessions), MySQL/MariaDB or PostgreSQL (users, orders)
+    migrations/    numbered .sql files (MySQL here, PostgreSQL in postgres/), embedded in the binary
     app/views/     <controller>_<action>.html views, layout.html and layout_<name>.html layouts, _<name>.html partials
     public/        static files
     main.go        wiring: create services once, inject them, register controllers
@@ -398,7 +409,7 @@ while `View` and params stay per request.
 ## Example: orders (`/order`)
 
 `controllers/order.go` -> `models/order.go` (validation, 10% discount from $100, cache-aside reads)
--> `store/` (memory store, or MySQL/MariaDB when `DB_DSN` is set).
+-> `store/` (memory store, or MySQL/MariaDB/PostgreSQL when `DB_DSN` is set).
 
     app.Register("order", &controllers.Order{Orders: orders})
 
@@ -495,7 +506,7 @@ A small helper over `database/sql`. No driver inside: import the one you use
     var list []Order
     err = conn.Select(ctx, &list, "SELECT * FROM orders WHERE id IN (?)", ids) // slice -> ?, ?, ?
     n, err := conn.Exec(ctx, "UPDATE orders SET paid = ? WHERE id = ?", true, id)
-    id, err := conn.Insert(ctx, "INSERT INTO orders (customer) VALUES (?) RETURNING id", name) // RETURNING only on PostgreSQL
+    id, err := conn.Insert(ctx, "INSERT INTO orders (customer) VALUES (?)", name) // new id; PostgreSQL gets RETURNING id added
     err = conn.Tx(ctx, func(tx *db.Tx) error { ... })  // commit on nil, rollback on error or panic
 
 - Always write `?`; PostgreSQL gets `$1, $2, ...`. `??` is a literal `?` (jsonb operators). A `?` inside quotes or comments is left alone.
@@ -505,26 +516,35 @@ A small helper over `database/sql`. No driver inside: import the one you use
   A column with no matching field is an error, so typos don't silently become empty values.
 - `NULL` columns: use pointer fields (`*string`) or `sql.NullString`. For MySQL `DATETIME` into `time.Time`, add `parseTime=true` to the DSN.
 
-## MySQL / MariaDB stores and migrations
+## MySQL / MariaDB / PostgreSQL stores and migrations
 
-With `DB_DSN` set, users and orders live in MySQL/MariaDB (`store/mysql*.go`); without it they live in memory.
+With `DB_DSN` set, users and orders live in a database; without it they live in memory.
+The DSN decides which one:
 
-    DB_DSN=user:pass@tcp(localhost:3306)/crayd
+    DB_DSN=user:pass@tcp(localhost:3306)/crayd                          # MySQL / MariaDB
+    DB_DSN=postgres://user:pass@localhost:5432/crayd?sslmode=disable    # PostgreSQL (drop sslmode=disable when the server has TLS)
     AUTO_MIGRATE=1          # default in development; in production run `go run . migrate` as a deploy step
 
-- Schema changes are plain files in `migrations/` (`003_add_something.sql`), applied in name order, each once,
-  recorded in `schema_migrations`. A lock stops two instances migrating at the same time. MySQL cannot roll back DDL,
-  so keep one change per file.
-- The DSN is normalised for you: `parseTime=true`, UTC, `clientFoundRows=true`, `multiStatements=false`. An invalid DSN error never prints the password.
+- The same stores (`UserSQL`, `OrderSQL` in `store/`) run on both databases.
+- Schema changes are plain files, applied in name order, each once, recorded in `schema_migrations`:
+  `migrations/` for MySQL/MariaDB, `migrations/postgres/` for PostgreSQL. Keep the two in step when you support both.
+  A lock stops two instances migrating at the same time.
+- PostgreSQL runs each migration file in a transaction, so a failed file leaves nothing behind. MySQL cannot roll back DDL,
+  so keep one change per file there.
+- Times are stored as UTC (`DATETIME` on MySQL, `TIMESTAMP` on PostgreSQL).
+- The MySQL DSN is normalised for you: `parseTime=true`, UTC, `clientFoundRows=true`, `multiStatements=false`.
+  An invalid DSN error never prints the password, for either database.
 - Production requires `DB_DSN`.
-- The MySQL driver is pinned to v1.7.1 (newer ones need hosts blocked while this was written); `go get -u github.com/go-sql-driver/mysql` is fine.
+- Drivers: `github.com/go-sql-driver/mysql` (pinned to v1.7.1; newer ones need hosts blocked while this was written,
+  `go get -u` is fine) and `github.com/lib/pq`. To use pgx instead, change the import in `store/postgres.go` and the driver name to `"pgx"`.
 
 Testing against a real server (use an empty database whose name ends in `_test`; its tables are dropped):
 
     MYSQL_TEST_DSN="user:pass@tcp(localhost:3306)/crayd_test" go test ./store -run MySQL -v
+    POSTGRES_TEST_DSN="postgres://user:pass@localhost:5432/crayd_test?sslmode=disable" go test ./store -run Postgres -v
 
-Status: the SQL and DDL were checked on PostgreSQL 16 and with a fake driver, but not on a real MySQL.
-Run the command above once before relying on it.
+Status: PostgreSQL 16 was tested for real (stores, migrations, and the full register/login/order flow).
+MySQL was checked only with a fake driver; run the MySQL command above once before relying on it.
 
 ## Middleware
 
@@ -540,5 +560,6 @@ Panics in actions or middleware are recovered and logged; the user gets a 500.
 - [x] Milestone 2: controllers / models / store layout, order example, Redis + in-memory cache, tests
 - [x] Milestone 3: sessions (Redis/memory/encrypted cookie), login helpers, CSRF, passwords, example login/register
 - [x] Milestone 4: `crayd/db` helper, config + `.env`, dev template reload, graceful shutdown, MySQL/MariaDB stores + migrations
+- [x] PostgreSQL support (same stores, own migrations)
 - [x] Usage guide (quick start to deployment)
 - [x] Layouts per controller or action, partials

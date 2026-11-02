@@ -11,7 +11,7 @@ type Config struct {
 	Env             string        // APP_ENV: development (default) or production
 	Addr            string        // ADDR, or ":" + PORT, default ":8080"
 	RedisAddr       string        // REDIS_ADDR: cache and sessions in Redis
-	DBDSN           string        // DB_DSN: MySQL/MariaDB, e.g. user:pass@tcp(localhost:3306)/crayd; empty = in-memory data
+	DBDSN           string        // DB_DSN: user:pass@tcp(localhost:3306)/crayd (MySQL) or postgres://... ; empty = in-memory data
 	AutoMigrate     bool          // AUTO_MIGRATE: apply new migrations at startup (default: on in development, off in production)
 	SessionSecret   string        // SESSION_SECRET: encrypted-cookie sessions when there is no Redis
 	InsecureCookies bool          // INSECURE_COOKIES: allow session cookies over plain HTTP (LAN testing)
