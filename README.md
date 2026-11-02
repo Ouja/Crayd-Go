@@ -68,6 +68,7 @@ What you can do inside an action:
 |---|---|
 | read input | `c.Param("k", "default")`, `c.ParamInt("id", 0)` (query, `/key/value` pairs and form fields, later ones win) |
 | show a different view | `c.SetView("note_new")` |
+| use another layout | `c.SetLayout("shop")` (see [Layouts and partials](#layouts-and-partials)) |
 | set the status | `c.SetStatus(422)` |
 | redirect | `c.Redirect("/note")` |
 | JSON instead of HTML | `c.JSON(200, map[string]any{"ok": true})` |
@@ -311,7 +312,7 @@ Not included: login rate limiting, email sending, password reset, user roles.
     models/        business rules, plain Go (no HTTP, SQL or Redis); defines the Cache and store interfaces
     store/         implementations: in-memory, Redis (cache, sessions), MySQL/MariaDB (users, orders)
     migrations/    numbered .sql files, embedded in the binary
-    app/views/     templates named <controller>_<action>.html, plus layout.html
+    app/views/     <controller>_<action>.html views, layout.html and layout_<name>.html layouts, _<name>.html partials
     public/        static files
     main.go        wiring: create services once, inject them, register controllers
 
@@ -336,10 +337,54 @@ with no web server, it belongs in `models`.
 - **Action**: an exported method with no arguments and no results. Without a verb prefix it answers GET/HEAD.
   A wrong verb gets `405 Method Not Allowed`.
 - **View**: `app/views/<controller>_<action>.html`, wrapped by `app/views/layout.html` via `{{ template "content" . }}`.
-  Output is HTML-escaped automatically.
+  Output is HTML-escaped automatically. Other layouts and shared pieces: see below.
 - **Hooks**: optional `PreDispatch()` / `PostDispatch()` methods.
 - **Params**: query < `/key/value` URL pairs < form body. `Param`, `ParamInt`, `ParamInt64`, `Params`.
 - **Responses**: render the view (default), `SetView`, `SetStatus`, `Redirect`, `JSON`, `NotFound`.
+
+## Layouts and partials
+
+Everything lives in `app/views/`, and the file name says what it is:
+
+| File | What it is |
+|---|---|
+| `layout.html` | the default layout, used unless a controller says otherwise |
+| `layout_shop.html` | another layout, picked with `c.SetLayout("shop")` |
+| `_nav.html` | a partial: include it anywhere with `{{ template "_nav" . }}` |
+| `shop_index.html` | a view, put where the layout says `{{ template "content" . }}` |
+
+Layouts and partials are never served as pages.
+
+Pick a layout for a whole controller in `PreDispatch`, and change it per action when needed:
+
+    type Shop struct{ Base }
+
+    func (c *Shop) PreDispatch() {
+        c.Base.PreDispatch()
+        c.SetLayout("shop")          // every /shop page uses layout_shop.html
+    }
+
+    func (c *Shop) Index()   {}                         // layout_shop.html
+    func (c *Shop) Receipt() { c.SetLayout("") }        // no layout: just the view (print pages, HTML for JavaScript)
+    func (c *Shop) Help()    { c.SetLayout("default") } // back to layout.html
+
+So a profile and gallery section can share one look and the store another:
+
+    func (c *Profile) PreDispatch() { c.Base.PreDispatch(); c.SetLayout("member") }
+    func (c *Gallery) PreDispatch() { c.Base.PreDispatch(); c.SetLayout("member") }
+    func (c *Store) PreDispatch()   { c.Base.PreDispatch(); c.SetLayout("store") }
+
+A layout can leave a spot for the view to fill, such as the page title:
+
+    <!-- layout.html -->
+    <title>{{ block "title" . }}My site{{ end }}</title>
+
+    <!-- shop_index.html -->
+    {{ define "title" }}Shop{{ end }}
+    <h2>Products</h2>
+
+Views without a controller always use `layout.html`. If `layout.html` doesn't exist, views are rendered as whole
+pages. Asking for a layout that has no file gives a 500 and a log line naming the missing file.
 
 ## Dependency injection
 
@@ -496,4 +541,4 @@ Panics in actions or middleware are recovered and logged; the user gets a 500.
 - [x] Milestone 3: sessions (Redis/memory/encrypted cookie), login helpers, CSRF, passwords, example login/register
 - [x] Milestone 4: `crayd/db` helper, config + `.env`, dev template reload, graceful shutdown, MySQL/MariaDB stores + migrations
 - [x] Usage guide (quick start to deployment)
-- [x] Layouting System for View
+- [x] Layouts per controller or action, partials

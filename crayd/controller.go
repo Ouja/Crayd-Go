@@ -16,11 +16,13 @@ type Controller struct {
 	Controller string         // resolved controller name
 	Action     string         // resolved action name
 
-	params  url.Values
-	session *Session
-	tpl     string
-	status  int
-	done    bool
+	params    url.Values
+	session   *Session
+	tpl       string
+	layout    string
+	layoutSet bool
+	status    int
+	done      bool
 }
 
 type controller interface{ base() *Controller }
@@ -65,6 +67,11 @@ func (c *Controller) IsPost() bool { return c.R.Method == http.MethodPost }
 
 // SetView overrides the template to render (default: controller_action).
 func (c *Controller) SetView(name string) { c.tpl = name }
+
+// SetLayout picks the layout for this request: "admin" uses layout_admin.html,
+// "default" uses layout.html and "" renders the view without a layout.
+// Call it in PreDispatch to set the layout for a whole controller.
+func (c *Controller) SetLayout(name string) { c.layout, c.layoutSet = name, true }
 
 // SetStatus sets the HTTP status used when the view is rendered.
 func (c *Controller) SetStatus(code int) { c.status = code }
