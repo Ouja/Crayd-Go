@@ -1,0 +1,17 @@
+<h2>Orders</h2>
+<p><a href="/order/new">+ New order</a></p>
+{{ if .orders }}
+<table>
+  <tr><th>#</th><th>Customer</th><th>Total</th><th></th></tr>
+  {{ range .orders }}
+  <tr>
+    <td>{{ .ID }}</td>
+    <td>{{ .Customer }}</td>
+    <td>{{ .Total }}</td>
+    <td><a href="/order/show/id/{{ .ID }}">View</a></td>
+  </tr>
+  {{ end }}
+</table>
+{{ else }}
+<p>No orders yet.</p>
+{{ end }}

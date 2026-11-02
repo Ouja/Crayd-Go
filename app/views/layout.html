@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ .site }}</title>
+  <link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+  <header>
+    <h1>{{ .site }}</h1>
+    <nav>
+      <a href="/">Home</a><a href="/order">Orders</a><a href="/hello">Hello</a><a href="/about">About</a>
+      <span class="account">
+      {{ if .email }}
+        {{ .email }}
+        <form class="inline" method="post" action="/auth/logout">{{ $.csrf.Field }}<button>Sign out</button></form>
+      {{ else }}
+        <a href="/auth/login">Sign in</a><a href="/auth/register">Register</a>
+      {{ end }}
+      </span>
+    </nav>
+  </header>
+  {{ with .flash }}<p class="flash">{{ . }}</p>{{ end }}
+  <main>{{ template "content" . }}</main>
+</body>
+</html>

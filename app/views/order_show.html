@@ -1,0 +1,13 @@
+{{ with .order }}
+<h2>Order #{{ .ID }}</h2>
+<p>Customer: {{ .Customer }}</p>
+<table>
+  <tr><th>Item</th><th>Qty</th><th>Price</th></tr>
+  {{ range .Items }}<tr><td>{{ .Name }}</td><td>{{ .Qty }}</td><td>{{ .Price }}</td></tr>{{ end }}
+</table>
+<p>Subtotal: {{ .Subtotal }}<br>
+{{ if .Discount }}Discount: -{{ .Discount }}<br>{{ end }}
+<strong>Total: {{ .Total }}</strong></p>
+<form method="post" action="/order/delete/id/{{ .ID }}">{{ $.csrf.Field }}<button>Delete</button></form>
+<p><a href="/order">&larr; All orders</a></p>
+{{ end }}

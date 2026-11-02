@@ -1,0 +1,15 @@
+# binaries
+/crayd-go
+/crayd-go.exe
+/hello
+/hello.exe
+*.test
+
+# local settings and secrets
+.env
+
+# editors and OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

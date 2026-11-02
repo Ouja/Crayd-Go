@@ -1,0 +1,21 @@
+<h2>New order</h2>
+<form method="post" action="/order/checkout">
+  {{ $.csrf.Field }}
+  <p>
+    <label>Customer <input name="customer" value="{{ index .form "customer" }}"></label>
+    {{ with .errors.customer }}<small class="error">{{ . }}</small>{{ end }}
+  </p>
+  <table>
+    <tr><th>Item</th><th>Qty</th><th>Price ($)</th></tr>
+    {{ range $i := .rows }}
+    <tr>
+      <td><input name="name{{ $i }}" value="{{ index $.form (printf "name%d" $i) }}"></td>
+      <td><input name="qty{{ $i }}" size="3" value="{{ index $.form (printf "qty%d" $i) }}"></td>
+      <td><input name="price{{ $i }}" size="6" value="{{ index $.form (printf "price%d" $i) }}"></td>
+    </tr>
+    {{ end }}
+  </table>
+  {{ with .errors.items }}<p class="error">{{ . }}</p>{{ end }}
+  <p>Orders of $100 or more get 10% off.</p>
+  <button>Place order</button>
+</form>
