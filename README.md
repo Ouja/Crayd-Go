@@ -496,3 +496,4 @@ Panics in actions or middleware are recovered and logged; the user gets a 500.
 - [x] Milestone 3: sessions (Redis/memory/encrypted cookie), login helpers, CSRF, passwords, example login/register
 - [x] Milestone 4: `crayd/db` helper, config + `.env`, dev template reload, graceful shutdown, MySQL/MariaDB stores + migrations
 - [x] Usage guide (quick start to deployment)
+- [x] Layouting System for View
