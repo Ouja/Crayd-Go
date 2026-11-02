@@ -1,6 +1,6 @@
 # Crayd.go
 
-A Go version of [Crayd](https://github.com/luminairre/Crayd2), the tiny PHP MVC framework.
+A Go version of [Crayd](https://github.com/luminairre/Crayd2), the tiny PHP MVC framework created by [luminairre](https://github.com/luminairre).
 
 **This is a prototype**, built out of nostalgia for the old micro framework: the same
 `/controller/action/key/value` URLs, the same `controller_action` view names, the same `layout.html`,
