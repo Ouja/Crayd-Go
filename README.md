@@ -340,6 +340,7 @@ with no web server, it belongs in `models`.
 | `/user/id/7` | `User.Index()` with `id=7` (unknown action falls back to index) |
 | `/user/show-all` | `User.ShowAll()` (CamelCase becomes kebab-case) |
 | `POST /hello` | `Index.PostHello()` (verb prefixes: Get, Post, Put, Patch, Delete) |
+| `POST /item/edit/id/5` with `_method=PUT` | `Item.PutEdit()` (HTML forms, see below) |
 | `/order/show/id/5` | `Order.Show()` |
 | `/about` | `app/views/about_index.html`, no controller needed |
 | `/css/app.css` | `public/css/app.css` (static files win over routes) |
@@ -352,6 +353,33 @@ with no web server, it belongs in `models`.
 - **Hooks**: optional `PreDispatch()` / `PostDispatch()` methods.
 - **Params**: query < `/key/value` URL pairs < form body. `Param`, `ParamInt`, `ParamInt64`, `Params`.
 - **Responses**: render the view (default), `SetView`, `SetStatus`, `Redirect`, `JSON`, `NotFound`.
+
+## PUT, PATCH and DELETE
+
+One URL can answer several methods; the method name prefix picks which one runs:
+
+    func (c *Product) Item()       {} // GET    /product/item/id/5
+    func (c *Product) PutItem()    {} // PUT    /product/item/id/5
+    func (c *Product) DeleteItem() {} // DELETE /product/item/id/5
+
+A method you didn't write gets `405 Method Not Allowed`.
+
+HTML forms can only send GET and POST, so a form asks for another method with a hidden `_method` field:
+
+    <form method="post" action="/product/item/id/{{ .product.ID }}">
+      {{ $.csrf.Field }}
+      <input type="hidden" name="_method" value="DELETE">
+      <button>Delete</button>
+    </form>
+
+- Only a POST body is read, so a link or a `?_method=` in the URL can never turn into a DELETE.
+- Allowed values are `PUT`, `PATCH` and `DELETE` (any case). Anything else is a 400.
+- The CSRF check still runs, as for any POST.
+- From JavaScript, send the real method and the token in a header:
+
+      fetch("/product/item/id/5", { method: "DELETE", headers: { "X-CSRF-Token": csrfToken } })
+
+  with `csrfToken` taken from `<meta name="csrf" content="{{ $.csrf.Token }}">` in the layout.
 
 ## Layouts and partials
 
@@ -563,3 +591,4 @@ Panics in actions or middleware are recovered and logged; the user gets a 500.
 - [x] PostgreSQL support (same stores, own migrations)
 - [x] Usage guide (quick start to deployment)
 - [x] Layouts per controller or action, partials
+- [x] `_method` override for PUT, PATCH and DELETE from HTML forms

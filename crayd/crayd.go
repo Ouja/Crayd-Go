@@ -5,6 +5,7 @@
 //	/hello                   -> Index.Hello()        (falls back to the index controller)
 //	/user/profile/id/5       -> User.Profile()       with Param("id") == "5"
 //	POST /user/save          -> User.PostSave()      (verb prefix: Get, Post, Put, Patch, Delete)
+//	POST + _method=DELETE    -> User.DeleteSave()    (for HTML forms, which only send GET and POST)
 //	/user/show-all           -> User.ShowAll()       (CamelCase becomes kebab-case)
 //	/about                   -> views/about_index.html (view-only page, no controller)
 //	/css/app.css             -> public/css/app.css   (static files win over routes)

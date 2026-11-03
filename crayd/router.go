@@ -69,6 +69,9 @@ func (a *App) has(ctrl, action string) bool {
 	return a.views.has(ctrl + "_" + action)
 }
 
+// methodKey is the form field a POST uses to stand in for PUT, PATCH or DELETE.
+const methodKey = "_method"
+
 // dispatch is Crayd's init.php + Controller::dispatch.
 func (a *App) dispatch(w http.ResponseWriter, r *http.Request) {
 	if a.serveStatic(w, r) {
@@ -94,33 +97,6 @@ func (a *App) dispatch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Pick the method for this HTTP verb.
-	verb := r.Method
-	if verb == http.MethodHead {
-		verb = http.MethodGet
-	}
-	info := a.controllers[ctrl]
-	var method *actionMethod
-	var allowed []string
-	if info != nil {
-		for v, m := range info.actions[action] {
-			allowed = append(allowed, v)
-			if v == verb {
-				m := m
-				method = &m
-			}
-		}
-	}
-	viewOnly := a.views.has(ctrl + "_" + action)
-	if viewOnly {
-		allowed = append(allowed, http.MethodGet)
-	}
-	if method == nil && !(viewOnly && verb == http.MethodGet) {
-		w.Header().Set("Allow", strings.Join(uniq(allowed), ", "))
-		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
 	// Params: query < /key/value pairs < form body (max 32 MB)
 	r.Body = http.MaxBytesReader(w, r.Body, maxBodyBytes)
 	var perr error
@@ -142,6 +118,45 @@ func (a *App) dispatch(w http.ResponseWriter, r *http.Request) {
 	}
 	for k, v := range r.PostForm {
 		params[k] = v
+	}
+
+	// Pick the method for this HTTP verb. HTML forms can only send GET and POST, so a POST
+	// may ask for PUT, PATCH or DELETE with a hidden _method field in its body.
+	verb := r.Method
+	if verb == http.MethodHead {
+		verb = http.MethodGet
+	}
+	if verb == http.MethodPost {
+		if m := r.PostForm.Get(methodKey); m != "" {
+			switch m = strings.ToUpper(m); m {
+			case http.MethodPut, http.MethodPatch, http.MethodDelete:
+				verb = m
+			default:
+				http.Error(w, "Bad Request: _method must be PUT, PATCH or DELETE", http.StatusBadRequest)
+				return
+			}
+		}
+	}
+	info := a.controllers[ctrl]
+	var method *actionMethod
+	var allowed []string
+	if info != nil {
+		for v, m := range info.actions[action] {
+			allowed = append(allowed, v)
+			if v == verb {
+				m := m
+				method = &m
+			}
+		}
+	}
+	viewOnly := a.views.has(ctrl + "_" + action)
+	if viewOnly {
+		allowed = append(allowed, http.MethodGet)
+	}
+	if method == nil && !(viewOnly && verb == http.MethodGet) {
+		w.Header().Set("Allow", strings.Join(uniq(allowed), ", "))
+		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+		return
 	}
 
 	// Fresh controller per request, copied from the registered prototype.
