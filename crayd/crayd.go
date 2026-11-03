@@ -41,6 +41,10 @@ type App struct {
 	trustedOrigins map[string]bool
 	csrfExempt     map[string]bool
 
+	// MaxBodyBytes caps the size of a request body (default DefaultMaxBodyBytes, 1 MB).
+	// A bigger body gets 413 before any action runs. Raise it for apps that take uploads.
+	MaxBodyBytes int64
+
 	// ShutdownTimeout is how long running requests get to finish when the app is
 	// told to stop (default 15s). After that their connections are closed.
 	ShutdownTimeout time.Duration
@@ -64,7 +68,7 @@ type actionMethod struct {
 // New loads layout.html and every view in viewDir, and serves ./public if it exists.
 func New(viewDir string) *App {
 	a := &App{views: mustLoadViews(viewDir), controllers: map[string]*ctrlInfo{},
-		trustedOrigins: map[string]bool{}, csrfExempt: map[string]bool{}}
+		trustedOrigins: map[string]bool{}, csrfExempt: map[string]bool{}, MaxBodyBytes: DefaultMaxBodyBytes}
 	a.Static("public")
 	return a
 }

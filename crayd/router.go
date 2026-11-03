@@ -1,6 +1,7 @@
 package crayd
 
 import (
+	"errors"
 	"io/fs"
 	"log"
 	"net/http"
@@ -97,15 +98,24 @@ func (a *App) dispatch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Params: query < /key/value pairs < form body (max 32 MB)
-	r.Body = http.MaxBytesReader(w, r.Body, maxBodyBytes)
+	// Params: query < /key/value pairs < form body (at most MaxBodyBytes)
+	limit := a.MaxBodyBytes
+	if limit <= 0 {
+		limit = DefaultMaxBodyBytes
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, limit)
 	var perr error
 	if strings.HasPrefix(r.Header.Get("Content-Type"), "multipart/form-data") {
-		perr = r.ParseMultipartForm(maxBodyBytes)
+		perr = r.ParseMultipartForm(multipartMemory) // uploaded files beyond this go to temp files
 	} else {
 		perr = r.ParseForm()
 	}
 	if perr != nil {
+		var tooBig *http.MaxBytesError
+		if errors.As(perr, &tooBig) {
+			http.Error(w, "Request Entity Too Large", http.StatusRequestEntityTooLarge)
+			return
+		}
 		http.Error(w, "Bad Request", http.StatusBadRequest)
 		return
 	}
@@ -208,7 +218,13 @@ func (a *App) dispatch(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-const maxBodyBytes = 32 << 20
+// DefaultMaxBodyBytes is the default App.MaxBodyBytes: plenty for forms, too small to
+// let anonymous requests use much memory.
+const DefaultMaxBodyBytes = 1 << 20
+
+// multipartMemory is how much of a multipart body is kept in memory; the rest of
+// the uploaded files is written to temporary files, removed after the request.
+const multipartMemory = 1 << 20
 
 // serveStatic serves files from the public dir. Directories are never listed.
 func (a *App) serveStatic(w http.ResponseWriter, r *http.Request) bool {

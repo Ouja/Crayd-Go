@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-var configVars = []string{"APP_ENV", "ADDR", "PORT", "REDIS_ADDR", "DB_DSN", "AUTO_MIGRATE", "SESSION_SECRET", "INSECURE_COOKIES", "SHUTDOWN_TIMEOUT"}
+var configVars = []string{"APP_ENV", "ADDR", "PORT", "REDIS_ADDR", "DB_DSN", "AUTO_MIGRATE", "SESSION_SECRET", "INSECURE_COOKIES", "SHUTDOWN_TIMEOUT", "MAX_BODY_SIZE"}
 
 func cleanConfigEnv(t *testing.T) {
 	for _, k := range configVars {
@@ -22,7 +22,7 @@ func TestConfigDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !c.Dev() || !c.AutoMigrate || c.DBDSN != "" || c.Addr != ":8080" || c.ShutdownTimeout != 15*time.Second || c.RedisAddr != "" || c.InsecureCookies {
+	if !c.Dev() || !c.AutoMigrate || c.DBDSN != "" || c.Addr != ":8080" || c.ShutdownTimeout != 15*time.Second || c.RedisAddr != "" || c.InsecureCookies || c.MaxBodySize != 1<<20 {
 		t.Fatalf("%+v", c)
 	}
 }
@@ -82,5 +82,17 @@ func TestConfigAllProblemsAtOnce(t *testing.T) {
 	}
 	if strings.Contains(err.Error(), "too-short") {
 		t.Error("secret value printed")
+	}
+}
+
+func TestConfigMaxBodySize(t *testing.T) {
+	cleanConfigEnv(t)
+	t.Setenv("MAX_BODY_SIZE", "20MB")
+	if c, err := loadConfig(); err != nil || c.MaxBodySize != 20<<20 {
+		t.Fatalf("%d %v", c.MaxBodySize, err)
+	}
+	t.Setenv("MAX_BODY_SIZE", "huge")
+	if _, err := loadConfig(); err == nil || !strings.Contains(err.Error(), "MAX_BODY_SIZE") {
+		t.Fatalf("bad size accepted: %v", err)
 	}
 }

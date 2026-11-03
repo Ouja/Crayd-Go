@@ -221,6 +221,40 @@ func (e *Env) Duration(key string, def time.Duration) time.Duration {
 	return d
 }
 
+// Size parses a byte size: a plain number of bytes, or a number with KB, MB or GB
+// (1 KB = 1024 bytes; the B is optional and case doesn't matter), like 512KB or 10MB.
+func (e *Env) Size(key string, def int64) int64 {
+	v, ok := lookup(key)
+	if !ok {
+		return def
+	}
+	n, err := parseSize(v)
+	if err != nil {
+		e.Add(fmt.Sprintf("%s must be a size like 1MB or 512KB (got %q)", key, v))
+		return def
+	}
+	return n
+}
+
+func parseSize(v string) (int64, error) {
+	s := strings.ToUpper(strings.TrimSpace(v))
+	s = strings.TrimSuffix(s, "B")
+	mult := int64(1)
+	switch {
+	case strings.HasSuffix(s, "K"):
+		mult, s = 1<<10, strings.TrimSuffix(s, "K")
+	case strings.HasSuffix(s, "M"):
+		mult, s = 1<<20, strings.TrimSuffix(s, "M")
+	case strings.HasSuffix(s, "G"):
+		mult, s = 1<<30, strings.TrimSuffix(s, "G")
+	}
+	n, err := strconv.ParseInt(strings.TrimSpace(s), 10, 64)
+	if err != nil || n <= 0 || n > (1<<62)/mult {
+		return 0, errors.New("invalid size")
+	}
+	return n * mult, nil
+}
+
 // OneOf returns the variable lower-cased, which must be one of allowed.
 func (e *Env) OneOf(key, def string, allowed ...string) string {
 	v, ok := lookup(key)

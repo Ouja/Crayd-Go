@@ -187,3 +187,26 @@ func TestEnvCollectsAllProblems(t *testing.T) {
 		t.Errorf("want 6 listed problems:\n%s", msg)
 	}
 }
+
+func TestEnvSize(t *testing.T) {
+	for v, want := range map[string]int64{
+		"1024": 1024, "512KB": 512 << 10, "512k": 512 << 10, "1MB": 1 << 20, "10 mb": 10 << 20, "32M": 32 << 20, "2GB": 2 << 30,
+	} {
+		t.Setenv("CRAYD_T_SIZE", v)
+		e := &Env{}
+		if got := e.Size("CRAYD_T_SIZE", 7); got != want || e.Err() != nil {
+			t.Errorf("%q: %d %v, want %d", v, got, e.Err(), want)
+		}
+	}
+	for _, v := range []string{"0", "-1MB", "1.5MB", "MB", "1TB", "lots", "99999999999GB"} {
+		t.Setenv("CRAYD_T_SIZE", v)
+		e := &Env{}
+		if got := e.Size("CRAYD_T_SIZE", 7); got != 7 || e.Err() == nil {
+			t.Errorf("%q must be rejected, got %d %v", v, got, e.Err())
+		}
+	}
+	os.Unsetenv("CRAYD_T_SIZE")
+	if got := (&Env{}).Size("CRAYD_T_SIZE", 7); got != 7 {
+		t.Errorf("unset: %d", got)
+	}
+}

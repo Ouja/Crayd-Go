@@ -413,8 +413,8 @@ func TestSafeRedirect(t *testing.T) {
 
 func TestBodyLimit(t *testing.T) {
 	a := newTestApp(t)
-	big := strings.Repeat("a", maxBodyBytes+10)
-	if w := do(a, "POST", "/hello", "name="+big); w.Code != 400 {
+	big := strings.Repeat("a", DefaultMaxBodyBytes+10)
+	if w := do(a, "POST", "/hello", "name="+big); w.Code != 413 {
 		t.Fatalf("oversized form: %d", w.Code)
 	}
 	// multipart (uploads) is where our own limit matters
@@ -423,7 +423,7 @@ func TestBodyLimit(t *testing.T) {
 	r.Header.Set("Content-Type", "multipart/form-data; boundary=X")
 	w := httptest.NewRecorder()
 	a.ServeHTTP(w, r)
-	if w.Code != 400 {
+	if w.Code != 413 {
 		t.Fatalf("oversized upload: %d", w.Code)
 	}
 	// a normal multipart form still works and its fields reach Param
@@ -447,5 +447,41 @@ func TestEmptiedSessionIsDeletedServerSide(t *testing.T) {
 	b.do("GET", "/plain", nil) // flash consumed -> session empty
 	if len(backend.items) != 0 {
 		t.Fatalf("emptied session left behind in the backend (%d items)", len(backend.items))
+	}
+}
+
+func multipartUpload(a *App, size int) *httptest.ResponseRecorder {
+	body := "--X\r\nContent-Disposition: form-data; name=\"name\"\r\n\r\nzed\r\n" +
+		"--X\r\nContent-Disposition: form-data; name=\"f\"; filename=\"a.bin\"\r\n\r\n" +
+		strings.Repeat("a", size) + "\r\n--X--\r\n"
+	r := httptest.NewRequest("POST", "/hello", strings.NewReader(body))
+	r.Header.Set("Content-Type", "multipart/form-data; boundary=X")
+	w := httptest.NewRecorder()
+	a.ServeHTTP(w, r)
+	return w
+}
+
+func TestBodyLimitIsConfigurable(t *testing.T) {
+	a := newTestApp(t)
+	a.MaxBodyBytes = 10
+	if w := do(a, "POST", "/hello", "name=0123456789"); w.Code != 413 {
+		t.Fatalf("15 bytes over a 10 byte limit: %d", w.Code)
+	}
+	if w := do(a, "POST", "/hello", "name=ok"); w.Code != 303 {
+		t.Fatalf("small form under the limit: %d", w.Code)
+	}
+
+	// an upload bigger than what is kept in memory works when the limit allows it
+	a.MaxBodyBytes = 5 << 20
+	if w := multipartUpload(a, 3<<20); w.Code != 303 || w.Header().Get("Location") != "/hello/name/zed" {
+		t.Fatalf("3 MB upload under a 5 MB limit: %d %q", w.Code, w.Header().Get("Location"))
+	}
+	if w := multipartUpload(a, 6<<20); w.Code != 413 {
+		t.Fatalf("6 MB upload over a 5 MB limit: %d", w.Code)
+	}
+
+	a.MaxBodyBytes = 0 // unset means the default
+	if w := multipartUpload(a, DefaultMaxBodyBytes+1); w.Code != 413 {
+		t.Fatalf("zero must fall back to the default: %d", w.Code)
 	}
 }

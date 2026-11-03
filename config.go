@@ -16,6 +16,7 @@ type Config struct {
 	SessionSecret   string        // SESSION_SECRET: encrypted-cookie sessions when there is no Redis
 	InsecureCookies bool          // INSECURE_COOKIES: allow session cookies over plain HTTP (LAN testing)
 	ShutdownTimeout time.Duration // SHUTDOWN_TIMEOUT: how long to wait for running requests on exit
+	MaxBodySize     int64         // MAX_BODY_SIZE: largest request body accepted, e.g. 1MB (default) or 20MB for uploads
 }
 
 // Dev reports development mode: views reload when their files change.
@@ -33,6 +34,7 @@ func loadConfig() (Config, error) {
 		SessionSecret:   e.String("SESSION_SECRET", ""),
 		InsecureCookies: e.Bool("INSECURE_COOKIES", false),
 		ShutdownTimeout: e.Duration("SHUTDOWN_TIMEOUT", 15*time.Second),
+		MaxBodySize:     e.Size("MAX_BODY_SIZE", crayd.DefaultMaxBodyBytes),
 	}
 	c.AutoMigrate = e.Bool("AUTO_MIGRATE", c.Dev())
 	if c.Addr == "" {

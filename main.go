@@ -129,6 +129,7 @@ func run() error {
 
 	app := buildApp(d)
 	app.ShutdownTimeout = cfg.ShutdownTimeout
+	app.MaxBodyBytes = cfg.MaxBodySize
 	for _, c := range closers {
 		app.OnShutdown(func(context.Context) error { return c() })
 	}

@@ -500,12 +500,18 @@ Wrong or missing settings stop the app at startup with every problem listed at o
 | `SESSION_SECRET` | 32+ characters: encrypted-cookie sessions without Redis | none |
 | `INSECURE_COOKIES` | `1` allows session cookies over plain HTTP (LAN testing only) | off |
 | `SHUTDOWN_TIMEOUT` | how long running requests may take to finish on stop | `15s` |
+| `MAX_BODY_SIZE` | largest request body (forms and uploads), e.g. `512KB`, `20MB`; bigger gets 413 | `1MB` |
 
 `production` refuses to start without `REDIS_ADDR` or `SESSION_SECRET` (otherwise everyone is signed out
 on every restart) and refuses `INSECURE_COOKIES`.
 
+**Request size.** Every request body is read before any action runs, so it is capped by `MAX_BODY_SIZE`
+(in code: `app.MaxBodyBytes`). The default 1 MB is plenty for forms. If you accept uploads, raise it to your
+largest file plus a little. Uploads keep at most 1 MB in memory; the rest goes to temporary files that are
+removed after the request. Behind nginx, set `client_max_body_size` to match.
+
 In your own code use `crayd.Env` for typed settings: `e := &crayd.Env{}`, then `e.String`, `e.Required`,
-`e.Int`, `e.Bool`, `e.Duration`, `e.OneOf`, and `e.Err()` once at the end.
+`e.Int`, `e.Bool`, `e.Duration`, `e.Size`, `e.OneOf`, and `e.Err()` once at the end.
 In `.env`, write Windows paths unquoted or in single quotes (inside double quotes `\t` and `\n` are escapes).
 
 **Development mode** (`app.Dev(true)`, on when `APP_ENV=development`): edit anything in `app/views/`,
