@@ -580,6 +580,30 @@ Testing against a real server (use an empty database whose name ends in `_test`;
 Status: PostgreSQL 16 was tested for real (stores, migrations, and the full register/login/order flow).
 MySQL was checked only with a fake driver; run the MySQL command above once before relying on it.
 
+## Security headers
+
+Every response (pages, static files, errors) gets these headers by default:
+
+| Header | Value | Why |
+|---|---|---|
+| `X-Content-Type-Options` | `nosniff` | browsers don't guess that a file is HTML or script |
+| `X-Frame-Options` | `SAMEORIGIN` | only your own site can show your pages in a frame (stops clickjacking) |
+| `Content-Security-Policy` | `frame-ancestors 'self'` | the same, for current browsers |
+| `Referrer-Policy` | `same-origin` | your URLs are not sent to other sites when users follow a link |
+
+Change them in `main.go`, before the app starts:
+
+    app.Headers.Set("X-Frame-Options", "DENY")                          // not even your own site may frame pages
+    app.Headers.Set("Strict-Transport-Security", "max-age=31536000")    // HTTPS only: once you are sure TLS stays on
+    app.Headers.Del("Referrer-Policy")
+
+A single action can change them for its own response, for example a widget other sites may embed:
+
+    func (c *Widget) Index() {
+        c.W.Header().Del("X-Frame-Options")
+        c.W.Header().Set("Content-Security-Policy", "frame-ancestors https://partner.example")
+    }
+
 ## Middleware
 
 Any standard `func(http.Handler) http.Handler` works. The first one added runs first.
@@ -598,3 +622,4 @@ Panics in actions or middleware are recovered and logged; the user gets a 500.
 - [x] Usage guide (quick start to deployment)
 - [x] Layouts per controller or action, partials
 - [x] `_method` override for PUT, PATCH and DELETE from HTML forms
+- [x] Request body limit (`MAX_BODY_SIZE`), default security headers

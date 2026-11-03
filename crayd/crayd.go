@@ -41,6 +41,16 @@ type App struct {
 	trustedOrigins map[string]bool
 	csrfExempt     map[string]bool
 
+	// Headers are added to every response (pages, static files and errors).
+	// The defaults come from DefaultHeaders; change them before serving:
+	//
+	//	app.Headers.Set("X-Frame-Options", "DENY")
+	//	app.Headers.Set("Strict-Transport-Security", "max-age=31536000")
+	//	app.Headers.Del("Referrer-Policy")
+	//
+	// An action can still change or remove one for its own response with c.W.Header().
+	Headers http.Header
+
 	// MaxBodyBytes caps the size of a request body (default DefaultMaxBodyBytes, 1 MB).
 	// A bigger body gets 413 before any action runs. Raise it for apps that take uploads.
 	MaxBodyBytes int64
@@ -68,7 +78,8 @@ type actionMethod struct {
 // New loads layout.html and every view in viewDir, and serves ./public if it exists.
 func New(viewDir string) *App {
 	a := &App{views: mustLoadViews(viewDir), controllers: map[string]*ctrlInfo{},
-		trustedOrigins: map[string]bool{}, csrfExempt: map[string]bool{}, MaxBodyBytes: DefaultMaxBodyBytes}
+		trustedOrigins: map[string]bool{}, csrfExempt: map[string]bool{}, MaxBodyBytes: DefaultMaxBodyBytes,
+		Headers: DefaultHeaders()}
 	a.Static("public")
 	return a
 }
@@ -130,6 +141,22 @@ func isFrameworkMethod(m reflect.Method) bool {
 	return true
 }
 
+// DefaultHeaders returns the security headers every response gets unless App.Headers
+// is changed:
+//
+//   - X-Content-Type-Options: nosniff, so browsers don't guess a file is HTML or script
+//   - X-Frame-Options and CSP frame-ancestors: only this site may show its pages in a
+//     frame, which stops clickjacking (an invisible frame over a "Delete" button)
+//   - Referrer-Policy: same-origin, so URLs of this site are not sent to other sites
+func DefaultHeaders() http.Header {
+	return http.Header{
+		"X-Content-Type-Options":  {"nosniff"},
+		"X-Frame-Options":         {"SAMEORIGIN"},
+		"Content-Security-Policy": {"frame-ancestors 'self'"},
+		"Referrer-Policy":         {"same-origin"},
+	}
+}
+
 // ServeHTTP runs the middleware chain and the dispatcher, recovering from panics.
 func (a *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	a.once.Do(func() {
@@ -139,6 +166,10 @@ func (a *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		a.handler = h
 	})
+	h := w.Header()
+	for k, v := range a.Headers {
+		h[k] = append([]string(nil), v...)
+	}
 	defer func() {
 		if err := recover(); err != nil {
 			if err == http.ErrAbortHandler {
