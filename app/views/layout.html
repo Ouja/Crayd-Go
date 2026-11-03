@@ -3,25 +3,32 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{{ .site }}</title>
+  <title>{{ block "title" . }}{{ or .site "Crayd.go" }}{{ end }}</title>
   <link rel="stylesheet" href="/css/app.css">
 </head>
 <body>
-  <header>
-    <h1>{{ .site }}</h1>
-    <nav>
-      <a href="/">Home</a><a href="/order">Orders</a><a href="/hello">Hello</a><a href="/about">About</a>
-      <span class="account">
+  <header class="site-header">
+    <div class="bar">
+      <a class="brand" href="/">{{ or .site "Crayd.go" }}</a>
+      <nav>
+        <a href="/" {{ if eq (print .controller) "index" }}class="active"{{ end }}>Home</a>
+        <a href="/order" {{ if eq (print .controller) "order" }}class="active"{{ end }}>Orders</a>
+        <a href="/hello">Hello</a>
+        <a href="/about">About</a>
+      </nav>
+      <div class="account">
       {{ if .email }}
-        {{ .email }}
+        <span>{{ .email }}</span>
         <form class="inline" method="post" action="/auth/logout">{{ $.csrf.Field }}<button>Sign out</button></form>
       {{ else }}
-        <a href="/auth/login">Sign in</a><a href="/auth/register">Register</a>
+        <a class="button secondary" href="/auth/login">Sign in</a>
+        <a class="button" href="/auth/register">Register</a>
       {{ end }}
-      </span>
-    </nav>
+      </div>
+    </div>
   </header>
   {{ with .flash }}<p class="flash">{{ . }}</p>{{ end }}
   <main>{{ template "content" . }}</main>
+  <footer>Built with Crayd.go</footer>
 </body>
 </html>

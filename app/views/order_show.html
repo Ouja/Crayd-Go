@@ -8,6 +8,6 @@
 <p>Subtotal: {{ .Subtotal }}<br>
 {{ if .Discount }}Discount: -{{ .Discount }}<br>{{ end }}
 <strong>Total: {{ .Total }}</strong></p>
-<form method="post" action="/order/delete/id/{{ .ID }}">{{ $.csrf.Field }}<button>Delete</button></form>
+<form method="post" action="/order/delete/id/{{ .ID }}">{{ $.csrf.Field }}<button class="secondary-danger">Delete</button></form>
 <p><a href="/order">&larr; All orders</a></p>
 {{ end }}
