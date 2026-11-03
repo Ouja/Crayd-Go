@@ -126,6 +126,9 @@ func run() error {
 		log.Println("cache + sessions: in-memory (set REDIS_ADDR or SESSION_SECRET to persist sessions)")
 	}
 	log.Println("mode:", cfg.Env)
+	if w := envWarning(cfg); w != "" {
+		log.Println(w)
+	}
 
 	app := buildApp(d)
 	app.ShutdownTimeout = cfg.ShutdownTimeout

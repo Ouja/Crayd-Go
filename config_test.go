@@ -96,3 +96,21 @@ func TestConfigMaxBodySize(t *testing.T) {
 		t.Fatalf("bad size accepted: %v", err)
 	}
 }
+
+func TestEnvWarning(t *testing.T) {
+	cleanConfigEnv(t)
+	c, _ := loadConfig()
+	if c.EnvSet || !strings.Contains(envWarning(c), "APP_ENV is not set") {
+		t.Fatalf("unset APP_ENV must warn: %+v", c)
+	}
+	t.Setenv("APP_ENV", "development")
+	if c, _ := loadConfig(); !c.EnvSet || envWarning(c) != "" {
+		t.Fatalf("explicit development must not warn: %+v", c)
+	}
+	t.Setenv("APP_ENV", "production")
+	t.Setenv("SESSION_SECRET", strings.Repeat("s", 32))
+	t.Setenv("DB_DSN", "u:p@tcp(localhost:3306)/crayd")
+	if c, err := loadConfig(); err != nil || envWarning(c) != "" {
+		t.Fatalf("production must not warn: %v", err)
+	}
+}

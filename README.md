@@ -505,6 +505,9 @@ Wrong or missing settings stop the app at startup with every problem listed at o
 `production` refuses to start without `REDIS_ADDR` or `SESSION_SECRET` (otherwise everyone is signed out
 on every restart) and refuses `INSECURE_COOKIES`.
 
+If `APP_ENV` is not set at all, the app runs in development mode and prints a warning at startup, so a
+server where it was forgotten doesn't quietly skip the production checks. `APP_ENV=development` hides the warning.
+
 **Request size.** Every request body is read before any action runs, so it is capped by `MAX_BODY_SIZE`
 (in code: `app.MaxBodyBytes`). The default 1 MB is plenty for forms. If you accept uploads, raise it to your
 largest file plus a little. Uploads keep at most 1 MB in memory; the rest goes to temporary files that are
@@ -622,4 +625,4 @@ Panics in actions or middleware are recovered and logged; the user gets a 500.
 - [x] Usage guide (quick start to deployment)
 - [x] Layouts per controller or action, partials
 - [x] `_method` override for PUT, PATCH and DELETE from HTML forms
-- [x] Request body limit (`MAX_BODY_SIZE`), default security headers
+- [x] Request body limit (`MAX_BODY_SIZE`), default security headers, warning when `APP_ENV` is not set

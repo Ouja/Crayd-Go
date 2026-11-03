@@ -9,6 +9,7 @@ import (
 // Config holds every setting the app reads from the environment (or a .env file).
 type Config struct {
 	Env             string        // APP_ENV: development (default) or production
+	EnvSet          bool          // APP_ENV was set explicitly (not just defaulted to development)
 	Addr            string        // ADDR, or ":" + PORT, default ":8080"
 	RedisAddr       string        // REDIS_ADDR: cache and sessions in Redis
 	DBDSN           string        // DB_DSN: user:pass@tcp(localhost:3306)/crayd (MySQL) or postgres://... ; empty = in-memory data
@@ -36,6 +37,7 @@ func loadConfig() (Config, error) {
 		ShutdownTimeout: e.Duration("SHUTDOWN_TIMEOUT", 15*time.Second),
 		MaxBodySize:     e.Size("MAX_BODY_SIZE", crayd.DefaultMaxBodyBytes),
 	}
+	c.EnvSet = e.String("APP_ENV", "") != ""
 	c.AutoMigrate = e.Bool("AUTO_MIGRATE", c.Dev())
 	if c.Addr == "" {
 		c.Addr = ":8080"
@@ -58,4 +60,16 @@ func loadConfig() (Config, error) {
 		}
 	}
 	return c, e.Err()
+}
+
+// envWarning is shown at startup when APP_ENV was never set. Forgetting it on a server
+// would quietly run development mode there, with production's safety checks skipped.
+func envWarning(c Config) string {
+	if c.EnvSet {
+		return ""
+	}
+	return `WARNING: APP_ENV is not set, so this runs in DEVELOPMENT mode:
+    template errors are shown in the browser, migrations run on start, and the
+    production checks (database, session store, secure cookies) are skipped.
+    On a server set APP_ENV=production. Set APP_ENV=development to hide this warning.`
 }
